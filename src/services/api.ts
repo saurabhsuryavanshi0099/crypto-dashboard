@@ -3,7 +3,12 @@ import { Crypto } from "../types";
 
 const API_URL = "https://api.coingecko.com/api/v3";
 
-export const fetchCryptos = async (currency: string): Promise<Crypto[]> => {
+export const fetchCryptos = async ({
+  queryKey,
+}: {
+  queryKey: [string, string];
+}): Promise<Crypto[]> => {
+  const [_key, currency] = queryKey;
   const response = await axios.get(`${API_URL}/coins/markets`, {
     params: {
       vs_currency: currency,

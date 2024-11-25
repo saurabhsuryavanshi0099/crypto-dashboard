@@ -1,6 +1,6 @@
 import React from "react";
 import { List, AutoSizer, ListRowRenderer } from "react-virtualized";
-import { Paper, Typography, Box, Avatar } from "@mui/material";
+import { Paper, Typography, Box, Avatar, Button } from "@mui/material";
 import { getCurrencySymbol } from "../utils/currencyUtils";
 import { Crypto } from "../types";
 
@@ -9,6 +9,7 @@ interface CryptoListProps {
   onSelect: (crypto: Crypto) => void;
   currency: string;
   selectedCrypto: Crypto | null;
+  refetchCryptos: () => void;
 }
 
 const CryptoList: React.FC<CryptoListProps> = ({
@@ -16,6 +17,7 @@ const CryptoList: React.FC<CryptoListProps> = ({
   onSelect,
   currency,
   selectedCrypto,
+  refetchCryptos,
 }) => {
   const rowRenderer: ListRowRenderer = ({ index, key, style }) => {
     const crypto = cryptos[index];
@@ -66,20 +68,34 @@ const CryptoList: React.FC<CryptoListProps> = ({
   };
 
   return (
-    <Paper sx={{ mt: 3, p: 2, height: "400px", overflowY: "auto" }}>
-      <Typography variant="h6" gutterBottom>
+    <Paper sx={{ mt: 3, mb: 3, p: 2, height: "450px", overflow: "hidden" }}>
+      <Typography
+        display={"flex"}
+        alignItems={"center"}
+        justifyContent={"space-between"}
+        variant="h6"
+        gutterBottom
+      >
         Top Cryptocurrencies
+        {/* <Button
+          variant="contained"
+          color="primary"
+          onClick={() => refetchCryptos()}
+          sx={{ mt: 2, mb: 2 }}
+        >
+          Refresh Data
+        </Button> */}
       </Typography>
       <AutoSizer>
         {({ height, width }) => (
           <List
             width={width}
-            height={height}
+            height={height - 15}
             rowCount={cryptos.length}
             rowHeight={65}
             rowRenderer={rowRenderer}
             overscanRowCount={5}
-            style={{ alignItems: "center" }}
+            style={{ outline: "none" }}
           />
         )}
       </AutoSizer>

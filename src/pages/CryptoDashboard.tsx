@@ -1,86 +1,70 @@
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useMemo, Suspense } from "react";
 import {
   Container,
   Typography,
-  Paper,
   Alert,
   Button,
+  CircularProgress,
   Box,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import CryptoList from "../components/CryptoList";
 import CurrencySelector from "../components/CurrencySelector";
 import RecentSearches from "../components/RecentSearches";
-import { fetchCryptos, fetchCryptoDetails } from "../services/api";
+import { useQuery } from "@tanstack/react-query";
+import { fetchCryptos } from "../services/api";
 import { Crypto, Currency } from "../types";
-import { getCurrencySymbol } from "../utils/currencyUtils";
-import CircularProgress from "@mui/material/CircularProgress";
 
 const CryptoDetails = React.lazy(() => import("../components/CryptoDetails"));
 
 const CryptoDashboard: React.FC = () => {
-  const [cryptos, setCryptos] = useState<Crypto[]>([]);
-  const [selectedCrypto, setSelectedCrypto] = useState<Crypto | null>(null);
   const [currency, setCurrency] = useState<Currency>("usd");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [recentSearches, setRecentSearches] = useState<Crypto[]>(
+  const [selectedCrypto, setSelectedCrypto] = useState<Crypto | null>(null);
+  const [recentSearches, setRecentSearches] = useState<Crypto[]>(() =>
     JSON.parse(localStorage.getItem("recentSearches") || "[]")
   );
 
-  const fetchCryptoData = async (currentCurrency: Currency) => {
-    setLoading(true);
-    setError(null);
+  // React Query to fetch cryptocurrencies
+  const {
+    data: cryptos = [],
+    isLoading: cryptosLoading,
+    isError: cryptosError,
+    refetch: refetchCryptos,
+  } = useQuery({
+    queryKey: ["cryptos", currency],
+    queryFn: fetchCryptos,
+    staleTime: 30 * 1000,
+  });
 
-    try {
-      const data = await fetchCryptos(currentCurrency);
-      setCryptos(data);
-
-      const persistedSelection =
-        selectedCrypto &&
-        data.find((crypto) => crypto.id === selectedCrypto.id);
-
-      if (persistedSelection) {
-        setSelectedCrypto(persistedSelection);
-      } else if (data.length > 0) {
-        setSelectedCrypto(data[0]);
+  // Handle data updates
+  React.useEffect(() => {
+    if (cryptos.length > 0) {
+      if (!selectedCrypto) {
+        setSelectedCrypto(cryptos[0]);
       } else {
-        setSelectedCrypto(null);
+        const updatedSelection = cryptos.find(
+          (crypto: Crypto) => crypto.id === selectedCrypto.id
+        );
+        setSelectedCrypto(updatedSelection || cryptos[0]);
       }
-    } catch (err) {
-      console.error("Error fetching cryptos:", err);
-      setError("Failed to fetch cryptocurrency data. Please try again later.");
-    } finally {
-      setLoading(false);
     }
+  }, [cryptos, selectedCrypto]);
+
+  const convertedCryptos = useMemo(() => cryptos, [cryptos]);
+
+  const handleCurrencyChange = (newCurrency: Currency) => {
+    setCurrency(newCurrency);
   };
 
-  useEffect(() => {
-    fetchCryptoData(currency);
-  }, [currency]);
-
   const handleCryptoSelect = (crypto: Crypto) => {
-    console.log("crypto", crypto);
-    const selectedCryptoDetails = cryptos?.filter(
-      (item) => item.id === crypto.id
-    )[0];
-    setSelectedCrypto(selectedCryptoDetails);
+    setSelectedCrypto(crypto);
+
     const updatedSearches = [
       crypto,
       ...recentSearches.filter((item) => item.id !== crypto.id),
     ].slice(0, 10);
-
     setRecentSearches(updatedSearches);
     localStorage.setItem("recentSearches", JSON.stringify(updatedSearches));
-  };
-
-  const handleCurrencyChange = (newCurrency: Currency) => {
-    setCurrency(newCurrency);
-    if (selectedCrypto) {
-      fetchCryptoDetails(selectedCrypto.id, newCurrency).then(
-        setSelectedCrypto
-      );
-    }
   };
 
   return (
@@ -88,13 +72,12 @@ const CryptoDashboard: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom align="center">
         Crypto Dashboard
       </Typography>
-
       <CurrencySelector
         currency={currency}
         onCurrencyChange={handleCurrencyChange}
       />
 
-      {error && (
+      {cryptosError && (
         <Alert
           severity="error"
           sx={{ mt: 2 }}
@@ -102,45 +85,56 @@ const CryptoDashboard: React.FC = () => {
             <Button
               color="inherit"
               size="small"
-              onClick={() => fetchCryptoData(currency)}
+              onClick={() => refetchCryptos()}
             >
               Retry
             </Button>
           }
         >
-          {error}
+          Failed to fetch cryptocurrency data. Please try again.
         </Alert>
       )}
 
-      {loading ? (
+      {cryptosLoading ? (
         <Typography align="center" sx={{ mt: 20 }}>
           <CircularProgress />
         </Typography>
       ) : (
         <Grid container spacing={2} sx={{ mt: 2 }}>
-          <Grid size={{ xs: 12, md: 5 }} display="flex" flexDirection="column">
-            <CryptoList
-              cryptos={cryptos}
-              onSelect={handleCryptoSelect}
-              currency={currency}
-              selectedCrypto={selectedCrypto}
-            />
+          {/* Crypto List Section */}
+          <Grid size={{ xs: 12, md: 5 }}>
+            <Box display="flex" flexDirection="column" width="100%">
+              <CryptoList
+                cryptos={convertedCryptos}
+                onSelect={handleCryptoSelect}
+                currency={currency}
+                selectedCrypto={selectedCrypto}
+                refetchCryptos={refetchCryptos}
+              />
+            </Box>
           </Grid>
 
-          {selectedCrypto && (
-            <Suspense fallback={<div>Loading...</div>}>
-              <CryptoDetails
+          {/* Crypto Details Section */}
+          <Grid size={{ xs: 12, md: 4 }}>
+            {selectedCrypto && (
+              <Suspense fallback={<CircularProgress />}>
+                <CryptoDetails
+                  selectedCrypto={selectedCrypto}
+                  currency={currency}
+                />
+              </Suspense>
+            )}
+          </Grid>
+
+          {/* Recent Searches Section */}
+          <Grid size={{ xs: 12, md: 3 }}>
+            <Box display="flex" flexDirection="column" width="100%">
+              <RecentSearches
+                searches={recentSearches}
+                onSearchSelect={handleCryptoSelect}
                 selectedCrypto={selectedCrypto}
-                currency={currency}
               />
-            </Suspense>
-          )}
-          <Grid size={{ xs: 12, md: 3 }} display="flex" flexDirection="column">
-            <RecentSearches
-              searches={recentSearches}
-              onSearchSelect={handleCryptoSelect}
-              selectedCrypto={selectedCrypto}
-            />
+            </Box>
           </Grid>
         </Grid>
       )}
